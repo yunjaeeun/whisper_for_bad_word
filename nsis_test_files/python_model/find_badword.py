@@ -1,10 +1,25 @@
 import os
+import sys
 import time
 import pickle
 import requests
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import whisper
+
+# ---------------------------------------------------------------------
+# ffmpeg 실행 파일 경로 지정
+# 배포 환경에서는 NSIS로 설치 시 ffmpeg가 $INSTDIR\ffmpeg 폴더에 있으므로 해당 경로를 사용합니다.
+if getattr(sys, 'frozen', False):
+    base_path = os.path.dirname(sys.executable)  # 예: C:\meeple
+    ffmpeg_executable = os.path.join(base_path, "ffmpeg", "ffmpeg.exe")
+    print(f"[DEBUG] 배포 환경의 ffmpeg 경로: {ffmpeg_executable}")
+else:
+    # 개발 환경에서는 시스템 PATH에 설치된 ffmpeg를 사용합니다.
+    ffmpeg_executable = "ffmpeg"
+
+os.environ["FFMPEG_BINARY"] = ffmpeg_executable
+# ---------------------------------------------------------------------
 
 # 전역 변수에 모델 캐싱 (한 번만 로딩)
 CACHED_MODEL = None
@@ -68,14 +83,15 @@ def process_audio_file(audio_file_path):
     """
     print("처리할 파일:", audio_file_path)
     
-    # 1. 음성 파일을 전사합니다.
+    # 1. 음성 파일 전사
     transcribed_text = transcribe_audio(audio_file_path, model_size="medium")
     
-    # 2. 분류 모델과 벡터라이저 로드 (파일 경로는 실제 위치로 수정)
-    classifier_model_path = "C:\meeple\models\\badword_model.pkl"
+    # 2. 분류 모델과 벡터라이저 로드
+    # 파일 경로는 실제 위치에 맞게 수정하세요.
+    classifier_model_path = r"C:\meeple\models\badword_model.pkl"
     classifier = load_classifier(classifier_model_path)
     
-    vectorizer_model_path = "C:\meeple\models\\vectorizer.pkl"
+    vectorizer_model_path = r"C:\meeple\models\vectorizer.pkl"
     try:
         vectorizer = load_vectorizer(vectorizer_model_path)
     except FileNotFoundError:
@@ -108,7 +124,7 @@ def process_audio_file(audio_file_path):
 
 class AudioFileHandler(FileSystemEventHandler):
     def on_created(self, event):
-        # 새 파일이 생성되었을 때
+        # 새 파일이 생성되었을 때 처리
         if event.is_directory:
             return
         # 확장자가 오디오 파일인지 확인 (.mp3, .wav, .webm, .m4a 등)

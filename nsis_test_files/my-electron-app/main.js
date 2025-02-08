@@ -25,23 +25,30 @@ function createWindow() {
 app.whenReady().then(() => {
   createWindow();
 
-  // 실행할 Python 파일 경로 설정
-  const pythonExePath = path.resolve("C:\\meeple", "find_badword.exe");
+  // 실행할 find_badword.exe 파일 경로 설정
+  const exePath = path.resolve("C:\\meeple", "find_badword.exe");
+  console.log(`🔍 실행할 파일: ${exePath}`);
 
-  console.log(`🔍 실행할 Python 파일: ${pythonExePath}`);
-
-  function runPythonProcess() {
-    // 새로운 cmd 창에서 실행하도록 `start` 명령 사용
-    const pythonProcess = spawn('cmd.exe', ['/c', 'start', 'cmd.exe', '/k', pythonExePath], {
-      shell: true
+  function runProcess() {
+    // 새로운 cmd 창에서 실행하도록 'start' 명령 사용
+    const pythonProcess = spawn('cmd.exe', [
+      '/c', 
+      'start', 
+      '""',            // 창 제목을 빈 문자열로 지정
+      'cmd.exe', 
+      '/k', 
+      exePath
+    ], {
+      shell: true,
+      windowsHide: false   // cmd 창이 숨겨지지 않도록 설정
     });
 
     pythonProcess.stdout.on('data', (data) => {
-      console.log(`🐍 Python stdout: ${data.toString().trim()}`);
+      console.log(`🐍 stdout: ${data.toString().trim()}`);
     });
 
     pythonProcess.stderr.on('data', (data) => {
-      console.error(`❌ Python stderr: ${data.toString().trim()}`);
+      console.error(`❌ stderr: ${data.toString().trim()}`);
     });
 
     pythonProcess.on('error', (err) => {
@@ -49,12 +56,12 @@ app.whenReady().then(() => {
     });
 
     pythonProcess.on('close', (code) => {
-      console.log(`✅ Python 프로세스 종료 (코드: ${code})`);
+      console.log(`✅ 프로세스 종료 (코드: ${code})`);
     });
   }
 
-  // 앱이 준비된 후 Python 실행
-  setTimeout(runPythonProcess, 1000);
+  // 앱이 준비된 후 1초 뒤에 프로세스 실행
+  setTimeout(runProcess, 1000);
 });
 
 // macOS에서는 창이 모두 닫혀도 앱이 종료되지 않도록 설정

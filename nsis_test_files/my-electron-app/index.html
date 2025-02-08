@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>My Electron App - Login</title>
+  </head>
+  <body>
+    <h1>Login</h1>
+    <form id="loginForm">
+      <label for="userEmail">Username:</label>
+      <input type="text" id="userEmail" required />
+      <br>
+      <label for="password">Password:</label>
+      <input type="password" id="password" required />
+      <br>
+      <button type="submit">Login</button>
+    </form>
+    <div id="message" style="color:red; margin-top:10px;"></div>
+    <div id="stompMessages" style="margin-top:10px;"></div>
+    
+    <script>
+      // npm으로 설치한 모듈을 require로 불러옵니다.
+      const SockJS = require('sockjs-client');
+      const { Stomp } = require('@stomp/stompjs');
+      
+      console.log("Stomp:", Stomp);
+
+      // STOMP 연결 함수 - 로그인 성공 후 반환된 userId를 사용하여 백엔드로 메시지 전송
+      function connectStomp(userId) {
+        // 백엔드의 SockJS 엔드포인트 URL (필요에 따라 수정)
+        const socket = new SockJS('http://localhost:8090/ws');
+        const stompClient = Stomp.over(socket);
+        
+        stompClient.connect({}, function(frame) {
+          console.log('STOMP Connected: ' + frame);
+          
+          // /topic/response-test 토픽 구독 (백엔드에서 전송되는 메시지 수신)
+          stompClient.subscribe('/topic/response-test', function(message) {
+            console.log('Received message:', message.body);
+            const msgDiv = document.getElementById('stompMessages');
+            if (msgDiv) {
+              const p = document.createElement('p');
+              p.innerText = message.body;
+              msgDiv.appendChild(p);
+            }
+          });
+          
+          // 백엔드의 MessageMapping(@MessageMapping("/response/{userId}"))으로 메시지 전송
+          const destination = '/app/response/' + userId;
+          stompClient.send(destination, {}, '');
+          console.log('Message sent to destination:', destination);
+        }, function(error) {
+          console.error('STOMP connection error:', error);
+        });
+      }
+      
+      // 로그인 폼 제출 이벤트 핸들러
+      document.getElementById('loginForm').addEventListener('submit', async (event) => {
+        event.preventDefault(); // 기본 폼 제출 동작 방지
+        const userEmail = document.getElementById('userEmail').value;
+        const password = document.getElementById('password').value;
+        
+        try {
+          // Spring Boot 서버의 로그인 엔드포인트로 POST 요청
+          const response = await fetch('http://localhost:8090/ai/login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ userEmail, password })
+          });
+          
+          const data = await response.json();
+          console.log('Login response:', data);
+          
+          // 반환된 JSON에 success, userId, userNickname가 있다고 가정합니다.
+          if (data.success) {
+            // 로그인 성공 시 화면 변경 및 STOMP 연결 실행
+            document.body.innerHTML = '<h1>Login Successful!</h1>' +
+              '<p>환영합니다, ' + data.userNickname + '님!</p>';
+            connectStomp(data.userId);
+          } else {
+            const msgElem = document.getElementById('message');
+            if (msgElem) {
+              msgElem.innerText = 'Login failed. Please try again.';
+            }
+          }
+        } catch (error) {
+          console.error('Error during login:', error);
+          const msgElem = document.getElementById('message');
+          if (msgElem) {
+            msgElem.innerText = 'An error occurred. Please try again.';
+          }
+        }
+      });
+    </script>
+  </body>
+</html>
