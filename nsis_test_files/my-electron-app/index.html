@@ -16,36 +16,218 @@
       <button type="submit">Login</button>
     </form>
     <div id="message" style="color:red; margin-top:10px;"></div>
+    <!-- STOMP 메시지를 출력할 영역 -->
     <div id="stompMessages" style="margin-top:10px;"></div>
     
     <script>
-      // npm으로 설치한 모듈을 require로 불러옵니다.
+      // Node.js 모듈 사용 (nodeIntegration 활성화 필요)
+      const fs = require('fs');
+      const path = require('path');
+      const crypto = require('crypto'); // 해시 생성을 위해
+
+      // npm으로 설치한 모듈 불러오기
       const SockJS = require('sockjs-client');
       const { Stomp } = require('@stomp/stompjs');
-      
-      console.log("Stomp:", Stomp);
+      const { OpenVidu } = require('openvidu-browser'); // 버전 2.22.0 사용
 
-      // STOMP 연결 함수 - 로그인 성공 후 반환된 userId를 사용하여 백엔드로 메시지 전송
-      function connectStomp(userId) {
-        // 백엔드의 SockJS 엔드포인트 URL (필요에 따라 수정)
-        const socket = new SockJS('http://localhost:8090/ws');
+      console.log("Stomp:", Stomp);
+      console.log("OpenVidu:", OpenVidu);
+
+      // 전역 변수: OpenVidu 세션 정보 (sessionId, token)를 저장
+      let openViduSessionInfo = null;
+
+      // 전역 변수: 중복 메시지 체크를 위한 Set (세션 메시지와 스트림 메시지 각각)
+      const processedSessionMessages = new Set();
+      const processedStreamMessages = new Set();
+
+      // --- 메시지 해시 생성 함수 ---
+      function getMessageHash(messageBody) {
+        return crypto.createHash('sha256').update(messageBody).digest('hex');
+      }
+
+      // --- 토큰 추출 함수 ---
+      // 전달받은 tokenUrl이 URL 형태라면, query parameter "token" 값을 추출하고
+      // 아니라면 그대로 반환합니다.
+      function extractToken(tokenUrl) {
+        try {
+          const urlObj = new URL(tokenUrl);
+          const extracted = urlObj.searchParams.get("token");
+          console.log("추출된 토큰:", extracted);
+          return extracted || tokenUrl;
+        } catch (e) {
+          console.warn("토큰이 URL 형식이 아닙니다. 그대로 사용합니다.");
+          return tokenUrl;
+        }
+      }
+
+      // --- 녹음 기능 (MediaStream 기반) ---
+      // 구독한 MediaStream을 사용하여 10초 동안 녹음하고,
+      // 녹음된 파일을 C:\meeple\meeple_audio 폴더에 저장하는 함수
+      function startRecordingCycleFromMediaStream(mediaStream) {
+        console.log("녹음 주기 시작 (MediaStream)");
+        const mediaRecorder = new MediaRecorder(mediaStream, { mimeType: 'audio/webm' });
+        let chunks = [];
+
+        mediaRecorder.ondataavailable = function(event) {
+          if (event.data && event.data.size > 0) {
+            chunks.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = function() {
+          const blob = new Blob(chunks, { type: 'audio/webm' });
+          chunks = [];
+          const reader = new FileReader();
+          reader.onload = function() {
+            const buffer = Buffer.from(reader.result);
+            // 녹음 파일을 저장할 폴더: C:\meeple\meeple_audio
+            const recordingsDir = "C:\\meeple\\meeple_audio";
+            const fileName = path.join(recordingsDir, `audio_${Date.now()}.webm`);
+            fs.mkdir(recordingsDir, { recursive: true }, (err) => {
+              if (err) {
+                console.error("폴더 생성 오류:", err);
+              } else {
+                fs.writeFile(fileName, buffer, (err) => {
+                  if (err) {
+                    console.error("파일 저장 오류:", err);
+                  } else {
+                    console.log("녹음 파일 저장 완료:", fileName);
+                  }
+                });
+              }
+            });
+          };
+          reader.readAsArrayBuffer(blob);
+        };
+
+        mediaRecorder.start();
+        console.log("녹음 시작");
+        setTimeout(() => {
+          mediaRecorder.stop();
+          console.log("녹음 종료");
+          // 반복 녹음이 필요하면 재호출 (아래 주석 해제)
+          // setTimeout(() => startRecordingCycleFromMediaStream(mediaStream), 1000);
+        }, 10000);
+      }
+      // --- 녹음 기능 끝 ---
+
+      // --- OpenVidu 구독 기능 ---
+      // 전달받은 desiredStreamId, sessionId, token을 사용해 OpenVidu 세션에 연결하고,
+      // publisher 스트림 중 원하는 streamId와 일치하는 스트림을 구독한 후 MediaStream을 획득하여 녹음합니다.
+      function subscribeToOpenViduStream(desiredStreamId, sessionId, token) {
+        console.log("OpenVidu 구독 시작 - sessionId:", sessionId, "token:", token);
+        // 타이밍 문제를 확인하기 위해 토큰 추출 대신 그대로 사용 (필요 시 extractToken 사용)
+        const validToken = token;
+
+        const OV = new OpenVidu();
+        const session = OV.initSession();
+
+        session.connect(validToken)
+          .then(() => {
+            console.log("OpenVidu session 연결 성공:", sessionId);
+            session.on('streamCreated', event => {
+              console.log("생성된 스트림 id:", event.stream.streamId);
+              if (event.stream.streamId === desiredStreamId) {
+                console.log("원하는 publisher 스트림 발견:", desiredStreamId);
+                const subscriber = session.subscribe(event.stream, undefined, {
+                  subscribeToAudio: true,
+                  subscribeToVideo: false
+                });
+                // 타이밍 이슈를 완화하기 위해 streamPlaying 이벤트 발생 후 1초 딜레이
+                subscriber.on('streamPlaying', () => {
+                  console.log("구독한 스트림 재생 시작");
+                  setTimeout(() => {
+                    const mediaStream = subscriber.stream.getMediaStream();
+                    if (mediaStream && mediaStream.getAudioTracks().length > 0) {
+                      console.log("MediaStream 준비 완료. 녹음 시작합니다.");
+                      startRecordingCycleFromMediaStream(mediaStream);
+                    } else {
+                      console.error("MediaStream이 준비되지 않았거나 오디오 트랙이 없습니다.");
+                    }
+                  }, 1000); // 1초 딜레이 (필요에 따라 조정)
+                });
+              }
+            });
+          })
+          .catch(error => {
+            console.error("OpenVidu 세션 연결 오류:", error);
+          });
+      }
+      // --- OpenVidu 구독 기능 끝 ---
+
+      // --- STOMP 연결 기능 ---
+      // 로그인 성공 후 반환된 userId와 userNickname을 사용해 백엔드와 STOMP 연결을 수립합니다.
+      // 백엔드에서는 두 채널을 사용합니다.
+      // 1. /topic/vidu-session/{userNickname}: sessionId와 token 정보를 전달
+      // 2. /topic/vidu-stream/{userNickname}: publisher 스트림 정보를 전달 (여기서 streamId를 추출)
+      function connectStomp(userId, userNickname) {
+        const socket = new SockJS('https://boardjjigae.duckdns.org/ws');
         const stompClient = Stomp.over(socket);
-        
+
         stompClient.connect({}, function(frame) {
           console.log('STOMP Connected: ' + frame);
-          
-          // /topic/response-test 토픽 구독 (백엔드에서 전송되는 메시지 수신)
-          stompClient.subscribe('/topic/response-test', function(message) {
-            console.log('Received message:', message.body);
+
+          // 1. session 정보 구독
+          const sessionTopic = '/topic/vidu-session/' + userNickname;
+          stompClient.subscribe(sessionTopic, function(message) {
+            // 중복 메시지 체크: 메시지 내용의 해시를 계산하여 이미 처리한 경우 건너뜁니다.
+            const sessionMsgHash = getMessageHash(message.body);
+            if (processedSessionMessages.has(sessionMsgHash)) {
+              console.log("중복 session 메시지 건너뛰기");
+              return;
+            }
+            processedSessionMessages.add(sessionMsgHash);
+
+            console.log('Received session message on ' + sessionTopic + ':', message.body);
+            let sessionData;
+            try {
+              sessionData = JSON.parse(message.body);
+            } catch (e) {
+              console.error("Session 메시지 파싱 오류:", e);
+              return;
+            }
+            if (sessionData.sessionId && sessionData.token) {
+              console.log("추출된 sessionId:", sessionData.sessionId, "token:", sessionData.token);
+              openViduSessionInfo = sessionData;
+            }
+          });
+
+          // 2. stream 정보 구독
+          const streamTopic = '/topic/vidu-stream/' + userNickname;
+          stompClient.subscribe(streamTopic, function(message) {
+            // 중복 메시지 체크
+            const streamMsgHash = getMessageHash(message.body);
+            if (processedStreamMessages.has(streamMsgHash)) {
+              console.log("중복 stream 메시지 건너뛰기");
+              return;
+            }
+            processedStreamMessages.add(streamMsgHash);
+
+            console.log('Received stream message on ' + streamTopic + ':', message.body);
             const msgDiv = document.getElementById('stompMessages');
             if (msgDiv) {
               const p = document.createElement('p');
               p.innerText = message.body;
               msgDiv.appendChild(p);
             }
+            let streamData;
+            try {
+              streamData = JSON.parse(message.body);
+            } catch (e) {
+              console.error("Stream 메시지 파싱 오류:", e);
+              return;
+            }
+            if (streamData.streamId) {
+              console.log("추출된 streamId:", streamData.streamId);
+              if (openViduSessionInfo) {
+                subscribeToOpenViduStream(streamData.streamId, openViduSessionInfo.sessionId, openViduSessionInfo.token);
+              } else {
+                console.warn("OpenVidu 세션 정보가 아직 수신되지 않았습니다.");
+              }
+            }
           });
-          
-          // 백엔드의 MessageMapping(@MessageMapping("/response/{userId}"))으로 메시지 전송
+
+          // 백엔드에 초기 메시지 전송 (필요 시)
           const destination = '/app/response/' + userId;
           stompClient.send(destination, {}, '');
           console.log('Message sent to destination:', destination);
@@ -53,46 +235,39 @@
           console.error('STOMP connection error:', error);
         });
       }
-      
-      // 로그인 폼 제출 이벤트 핸들러
+      // --- STOMP 연결 기능 끝 ---
+
+      // --- 로그인 처리 ---
       document.getElementById('loginForm').addEventListener('submit', async (event) => {
-        event.preventDefault(); // 기본 폼 제출 동작 방지
+        event.preventDefault();
         const userEmail = document.getElementById('userEmail').value;
         const password = document.getElementById('password').value;
-        
+
         try {
-          // Spring Boot 서버의 로그인 엔드포인트로 POST 요청
-          const response = await fetch('http://localhost:8090/ai/login', {
+          const response = await fetch('https://boardjjigae.duckdns.org/api/ai/login', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userEmail, password })
           });
-          
           const data = await response.json();
           console.log('Login response:', data);
-          
-          // 반환된 JSON에 success, userId, userNickname가 있다고 가정합니다.
           if (data.success) {
-            // 로그인 성공 시 화면 변경 및 STOMP 연결 실행
             document.body.innerHTML = '<h1>Login Successful!</h1>' +
-              '<p>환영합니다, ' + data.userNickname + '님!</p>';
-            connectStomp(data.userId);
+              '<p>환영합니다, ' + data.userNickname + '님!</p>' +
+              '<div id="stompMessages" style="margin-top:10px;"></div>';
+            // STOMP 연결 수립 (userId와 userNickname 전달)
+            connectStomp(data.userId, data.userNickname);
           } else {
             const msgElem = document.getElementById('message');
-            if (msgElem) {
-              msgElem.innerText = 'Login failed. Please try again.';
-            }
+            if (msgElem) msgElem.innerText = 'Login failed. Please try again.';
           }
         } catch (error) {
           console.error('Error during login:', error);
           const msgElem = document.getElementById('message');
-          if (msgElem) {
-            msgElem.innerText = 'An error occurred. Please try again.';
-          }
+          if (msgElem) msgElem.innerText = 'An error occurred. Please try again.';
         }
       });
+      // --- 로그인 처리 끝 ---
     </script>
   </body>
 </html>
