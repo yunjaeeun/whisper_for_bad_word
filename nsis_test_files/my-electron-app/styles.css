@@ -1,0 +1,199 @@
+/* DungGeunMo 폰트 적용 */
+@font-face {
+  font-family: "DungGeunMo";
+  src: url("https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_six@1.2/DungGeunMo.woff") format("woff");
+  font-weight: normal;
+  font-style: normal;
+}
+
+/* 전체 페이지 스타일 */
+body {
+  font-family: "DungGeunMo", sans-serif;
+  background-image: url("backGroundSpace.png");
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  margin: 0;
+  color: white;
+}
+
+/* 로그인 컨테이너 */
+.login-container {
+  background: rgba(255, 255, 255, 0.9);
+  padding: 30px;
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  text-align: center;
+  width: 320px;
+  color: black;
+}
+
+/* 로그인 완료 메시지 */
+.success-message {
+  display: none;
+  text-align: center;
+  font-size: 28px;
+  margin-top: 10px;
+  margin-bottom: 30px;
+  color: yellow;
+}
+
+/* 대화 컨테이너: 두 캐릭터를 나란히 배치 */
+#conversation {
+  display: none; /* 로그인 성공 후 표시 */
+  justify-content: space-around;
+  align-items: flex-end;
+  width: 100%;
+  max-width: 800px;
+  margin-top: 50px;
+}
+
+/* 캐릭터 컨테이너 */
+.character-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  flex: 1;
+}
+
+/* 캐릭터 이미지 스타일 */
+.character-img {
+  width: 150px;
+  height: 150px;
+  animation: bounce 0.6s infinite ease-in-out;
+}
+
+/* 왼쪽 캐릭터 이미지 */
+.left .character-img {
+  animation-delay: 0s;
+}
+
+/* 오른쪽 캐릭터 이미지: 약간의 딜레이로 번갈아 bounce */
+.right .character-img {
+  animation-delay: 0.3s;
+}
+
+/* Bounce 애니메이션 */
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-20px); }
+}
+
+/* Speech bubble 기본 스타일 */
+.speech-bubble {
+  position: absolute;
+  background: #219ebc;
+  color: white;
+  padding: 10px 15px;
+  border-radius: 10px;
+  max-width: 200px;
+  margin-bottom: 10px;
+  animation: fadeInOut 4s infinite;
+  opacity: 0;
+}
+
+/* Speech bubble 애니메이션 (fade in/out) */
+@keyframes fadeInOut {
+  0% { opacity: 0; }
+  10% { opacity: 1; }
+  40% { opacity: 1; }
+  50% { opacity: 0; }
+  100% { opacity: 0; }
+}
+
+/* 왼쪽 캐릭터의 speech bubble: 오른쪽에 위치 */
+.left .speech-bubble {
+  top: -50px;
+  right: 10px;
+  animation-delay: 0s;
+  text-align: right;
+}
+
+/* 오른쪽 캐릭터의 speech bubble: 왼쪽에 위치 */
+.right .speech-bubble {
+  top: -50px;
+  left: 10px;
+  animation-delay: 2s;
+  text-align: left;
+}
+
+/* Speech bubble 화살표 (왼쪽 캐릭터용): 오른쪽을 향함 */
+.left .speech-bubble::after {
+  content: "";
+  position: absolute;
+  bottom: -10px;
+  right: 15px;
+  border-width: 10px;
+  border-style: solid;
+  border-color: #219ebc transparent transparent transparent;
+}
+
+/* Speech bubble 화살표 (오른쪽 캐릭터용): 왼쪽을 향함 */
+.right .speech-bubble::after {
+  content: "";
+  position: absolute;
+  bottom: -10px;
+  left: 15px;
+  border-width: 10px;
+  border-style: solid;
+  border-color: #219ebc transparent transparent transparent;
+}
+
+/* 입력 필드 스타일 */
+.input-field {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 10px;
+  border: none;
+  border-radius: 5px;
+  background-color: #f1f1f1;
+  font-size: 14px;
+}
+
+/* 로그인 버튼 */
+.login-btn {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(to right, #8ecae6, #219ebc);
+  color: white;
+  font-size: 14px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.login-btn:hover {
+  background: linear-gradient(to right, #219ebc, #023047);
+}
+
+/* 로그아웃 버튼 스타일 */
+.logout-btn {
+  display: none;
+  margin-top: 20px;
+  padding: 12px 24px;
+  background: linear-gradient(to right, #ff7675, #d63031);
+  border: none;
+  border-radius: 5px;
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.logout-btn:hover {
+  background: linear-gradient(to right, #d63031, #ff7675);
+}
+
+/* 추가 메시지 출력 영역 */
+#message {
+  margin-top: 20px;
+  font-size: 14px;
+  text-align: center;
+}

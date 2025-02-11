@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>My Electron App - Login</title>
+  </head>
+  <body>
+    <h1>Login</h1>
+    <form id="loginForm">
+      <label for="userEmail">Username:</label>
+      <input type="text" id="userEmail" required />
+      <br>
+      <label for="password">Password:</label>
+      <input type="password" id="password" required />
+      <br>
+      <button type="submit">Login</button>
+    </form>
+    <div id="message" style="color:red; margin-top:10px;"></div>
+    
+    <script>
+      // Node.js 모듈 (nodeIntegration 활성화 필요)
+      const fs = require('fs');
+      const path = require('path');
+      const SockJS = require('sockjs-client');
+      const { Stomp } = require('@stomp/stompjs');
+
+      // 자동 녹음 관련 전역 변수
+      let autoRecordingActive = false;
+      let autoRecordingStream = null;
+      let currentMediaRecorder = null;
+      let autoRecordingTimeoutId = null;
+
+      // --- 자동 녹음 기능 ---
+      async function startAutoRecording() {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+          console.log("오디오 스트림 획득 성공");
+          document.getElementById('message').innerText = "오디오 스트림 획득 성공. 녹음 시작됨.";
+          autoRecordingStream = stream;
+          autoRecordingActive = true;
+          startSegmentRecording(stream);
+        } catch (error) {
+          console.error("오디오 스트림 획득 오류:", error);
+          document.getElementById('message').innerText = "오디오 스트림 획득 오류: " + error;
+        }
+      }
+
+      function startSegmentRecording(stream) {
+        const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+        currentMediaRecorder = mediaRecorder;
+        let chunks = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data && event.data.size > 0) {
+            chunks.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' });
+          chunks = []; // 다음 녹음 사이클을 위해 초기화
+
+          const reader = new FileReader();
+          reader.onload = () => {
+            const buffer = Buffer.from(reader.result);
+            const recordingsDir = "C:\\meeple\\meeple_audio";
+            // 전역 변수에 저장된 userNickname을 파일명에 포함 (없으면 "unknown")
+            const nickname = window.userNickname || "unknown";
+            const fileName = path.join(recordingsDir, `${nickname}_audio_${Date.now()}.webm`);
+            fs.mkdir(recordingsDir, { recursive: true }, (err) => {
+              if (err) {
+                console.error("폴더 생성 오류:", err);
+              } else {
+                fs.writeFile(fileName, buffer, (err) => {
+                  if (err) {
+                    console.error("파일 저장 오류:", err);
+                  } else {
+                    console.log("녹음 파일 저장 완료:", fileName);
+                    document.getElementById('message').innerText = "녹음 파일 저장 완료: " + fileName;
+                  }
+                });
+              }
+            });
+          };
+          reader.readAsArrayBuffer(blob);
+
+          // autoRecordingActive가 true이면 1초 후 다음 사이클 시작
+          if (autoRecordingActive) {
+            autoRecordingTimeoutId = setTimeout(() => {
+              startSegmentRecording(stream);
+            }, 1000);
+          }
+        };
+
+        mediaRecorder.start();
+        console.log("녹음 시작: 10초 동안 녹음합니다.");
+        document.getElementById('message').innerText = "녹음 시작: 10초 동안 녹음합니다.";
+
+        // 10초 후 녹음 중지 (녹음 파일 저장 트리거)
+        setTimeout(() => {
+          if (mediaRecorder && mediaRecorder.state === "recording") {
+            mediaRecorder.stop();
+            console.log("녹음 종료");
+          }
+        }, 10000);
+      }
+
+      function stopAutoRecording() {
+        autoRecordingActive = false;
+        if (autoRecordingTimeoutId) {
+          clearTimeout(autoRecordingTimeoutId);
+          autoRecordingTimeoutId = null;
+        }
+        if (currentMediaRecorder && currentMediaRecorder.state === "recording") {
+          currentMediaRecorder.stop();
+        }
+        document.getElementById('message').innerText = "녹음 종료됨.";
+        console.log("녹음 종료됨.");
+      }
+
+      // --- STOMP 연결 기능 ---
+      function connectStomp(userId, userNickname) {
+        const socket = new SockJS('https://boardjjigae.duckdns.org/ws');
+        const stompClient = Stomp.over(socket);
+        stompClient.connect({}, function(frame) {
+          console.log('STOMP Connected: ' + frame);
+          const aiRecordTopic = '/topic/ai-record' + userNickname;
+          stompClient.subscribe(aiRecordTopic, function(message) {
+            const command = message.body.trim();
+            console.log("STOMP 메시지 수신 (" + aiRecordTopic + "): " + command);
+            if (command === "녹음 시작") {
+              if (!autoRecordingActive) {
+                console.log("녹음 시작 명령 수신 - 자동 녹음 시작");
+                startAutoRecording();
+              } else {
+                console.log("이미 녹음 중입니다.");
+              }
+            } else if (command === "녹음 종료") {
+              if (autoRecordingActive) {
+                console.log("녹음 종료 명령 수신 - 자동 녹음 중지");
+                stopAutoRecording();
+              } else {
+                console.log("녹음이 이미 종료되었습니다.");
+              }
+            }
+          });
+        }, function(error) {
+          console.error("STOMP 연결 오류:", error);
+        });
+      }
+
+      // --- 로그인 처리 ---
+      document.getElementById('loginForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const userEmail = document.getElementById('userEmail').value;
+        const password = document.getElementById('password').value;
+
+        try {
+          const response = await fetch('https://boardjjigae.duckdns.org/api/ai/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userEmail, password })
+          });
+          const data = await response.json();
+          console.log('Login response:', data);
+          if (data.success) {
+            // 로그인 성공 후 화면 교체 및 STOMP 연결 수립
+            document.body.innerHTML = `<h1>Login Successful!</h1>
+              <p>환영합니다, ${data.userNickname}님!</p>
+              <div id="message" style="color:green; margin-top:10px;"></div>`;
+            // 전역 변수에 userNickname 저장
+            window.userNickname = data.userNickname;
+            connectStomp(data.userId, data.userNickname);
+          } else {
+            document.getElementById('message').innerText = 'Login failed. Please try again.';
+          }
+        } catch (error) {
+          console.error('Error during login:', error);
+          document.getElementById('message').innerText = 'An error occurred. Please try again.';
+        }
+      });
+    </script>
+  </body>
+</html>

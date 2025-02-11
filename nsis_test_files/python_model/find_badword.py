@@ -9,13 +9,11 @@ import whisper
 
 # ---------------------------------------------------------------------
 # ffmpeg 실행 파일 경로 지정
-# 배포 환경에서는 NSIS로 설치 시 ffmpeg가 $INSTDIR\ffmpeg 폴더에 있으므로 해당 경로를 사용합니다.
 if getattr(sys, 'frozen', False):
     base_path = os.path.dirname(sys.executable)  # 예: C:\meeple
     ffmpeg_executable = os.path.join(base_path, "ffmpeg", "ffmpeg.exe")
     print(f"[DEBUG] 배포 환경의 ffmpeg 경로: {ffmpeg_executable}")
 else:
-    # 개발 환경에서는 시스템 PATH에 설치된 ffmpeg를 사용합니다.
     ffmpeg_executable = "ffmpeg"
 
 os.environ["FFMPEG_BINARY"] = ffmpeg_executable
@@ -75,19 +73,33 @@ def classify_text(text, classifier, vectorizer=None):
         prediction = classifier.predict([text])
     return prediction[0]
 
+def extract_user_nickname_from_filename(file_path):
+    """
+    파일명이 'userNickname_audio_timestamp.webm' 형식일 때,
+    첫 번째 언더바 앞의 문자열을 닉네임으로 추출합니다.
+    """
+    base = os.path.basename(file_path)
+    parts = base.split('_')
+    if len(parts) >= 2:
+        return parts[0]
+    return ""
+
 def process_audio_file(audio_file_path):
     """
-    주어진 음성 파일을 Whisper로 전사하고, 욕설 여부를 판별합니다.
-    욕설이 감지되면 SpringBoot 서버에 파일과 전사된 텍스트를 전송하고, 
+    음성 파일을 Whisper로 전사하고 욕설 여부를 판별합니다.
+    욕설이 감지되면 SpringBoot 서버에 파일과 전사된 텍스트를 전송하고,
     욕설이 아니면 해당 파일을 삭제합니다.
     """
     print("처리할 파일:", audio_file_path)
     
+    # 파일명에서 사용자 닉네임 추출
+    user_nickname = extract_user_nickname_from_filename(audio_file_path)
+    print("파일명에서 추출된 userNickname:", user_nickname)
+    
     # 1. 음성 파일 전사
     transcribed_text = transcribe_audio(audio_file_path, model_size="medium")
     
-    # 2. 분류 모델과 벡터라이저 로드
-    # 파일 경로는 실제 위치에 맞게 수정하세요.
+    # 2. 분류 모델과 벡터라이저 로드 (파일 경로는 실제 위치에 맞게 수정)
     classifier_model_path = r"C:\meeple\models\badword_model.pkl"
     classifier = load_classifier(classifier_model_path)
     
@@ -103,16 +115,19 @@ def process_audio_file(audio_file_path):
     
     if result == 1:
         print("욕설이 감지되었습니다.")
-        # 욕설 감지 시 SpringBoot 서버에 파일과 전사 텍스트 전송 (URL 수정 필요)
-        # springboot_api_url = "http://your-springboot-server-domain:port/api/notify-profanity"
-        # try:
-        #     with open(audio_file_path, "rb") as f:
-        #         files = {"audio": f}
-        #         data = {"transcribed_text": transcribed_text}
-        #         response = requests.post(springboot_api_url, files=files, data=data)
-        #     print("SpringBoot 서버 응답:", response.json())
-        # except Exception as e:
-        #     print("SpringBoot 서버 전송 오류:", e)
+        # 욕설 감지 시 SpringBoot 서버에 파일과 전사 텍스트 전송
+        springboot_api_url = "https://boardjjigae.duckdns.org/api/ai/voice-log"
+        try:
+            with open(audio_file_path, "rb") as f:
+                files = {"audio": f}
+                data = {
+                    "voiceLog": transcribed_text,
+                    "userNickname": user_nickname  # 파일명에서 추출한 닉네임 사용
+                }
+                response = requests.post(springboot_api_url, files=files, data=data)
+            print("SpringBoot 서버 응답:", response.json())
+        except Exception as e:
+            print("SpringBoot 서버 전송 오류:", e)
         # 욕설이 감지된 경우 파일은 보존 (추후 별도 처리 가능)
     else:
         print("욕설이 감지되지 않았습니다. 파일을 삭제합니다.")
@@ -127,7 +142,6 @@ class AudioFileHandler(FileSystemEventHandler):
         # 새 파일이 생성되었을 때 처리
         if event.is_directory:
             return
-        # 확장자가 오디오 파일인지 확인 (.mp3, .wav, .webm, .m4a 등)
         ext = os.path.splitext(event.src_path)[1].lower()
         if ext in [".mp3", ".wav", ".webm", ".m4a"]:
             print("새 음성 파일 감지:", event.src_path)
@@ -135,7 +149,7 @@ class AudioFileHandler(FileSystemEventHandler):
 
 if __name__ == "__main__":
     # 감시할 폴더 경로 (실제 환경에 맞게 수정)
-    folder_to_watch = r"C:\meeple\meeple_audio"  # 예: 녹음 파일이 저장되는 폴더 경로
+    folder_to_watch = r"C:\meeple\meeple_audio"
     event_handler = AudioFileHandler()
     observer = Observer()
     observer.schedule(event_handler, folder_to_watch, recursive=False)

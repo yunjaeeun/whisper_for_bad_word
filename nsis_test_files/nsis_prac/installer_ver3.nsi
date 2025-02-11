@@ -11,16 +11,16 @@ Section "Install"
   CreateDirectory "$INSTDIR\meeple_audio"
   
   SetOutPath "$INSTDIR"
-  File "C:\Users\User\AppData\Local\Programs\my-electron-app\MyElectronApp.exe"
+  File "C:\Users\SSAFY\AppData\Local\Programs\meeple-app\MeepleApp.exe"
   
   CreateDirectory "$INSTDIR\resources"
-  File /r "C:\Users\User\AppData\Local\Programs\my-electron-app\*.*"
+  File /r "C:\Users\SSAFY\AppData\Local\Programs\meeple-app\*.*"
   
   CreateDirectory "$INSTDIR\models"
-  File /oname=models\badword_model.pkl "C:\Users\User\Desktop\electron_test\python_model\badword_model.pkl"
-  File /oname=models\vectorizer.pkl "C:\Users\User\Desktop\electron_test\python_model\vectorizer.pkl"
+  File /oname=models\badword_model.pkl "C:\Users\SSAFY\Desktop\whisper_for_bad_word\nsis_test_files\python_model\badword_model.pkl"
+  File /oname=models\vectorizer.pkl "C:\Users\SSAFY\Desktop\whisper_for_bad_word\nsis_test_files\python_model\vectorizer.pkl"
   
-  CreateShortCut "$DESKTOP\MyElectronApp.lnk" "$INSTDIR\MyElectronApp.exe"
+  CreateShortCut "$DESKTOP\MeepleApp.lnk" "$INSTDIR\MeepleApp.exe"
 SectionEnd
 
 

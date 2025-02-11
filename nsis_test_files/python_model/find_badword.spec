@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('C:\\Python312\\Lib\\site-packages\\whisper\\assets', 'whisper\\assets')]
+datas = [('C:\\Users\\SSAFY\\Desktop\\whisper_for_bad_word\\nsis_test_files\\venv\\Lib\\site-packages\\whisper\\assets', 'whisper\\assets')]
 binaries = []
 hiddenimports = ['sklearn', 'whisper']
 tmp_ret = collect_all('sklearn')
