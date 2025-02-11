@@ -22,6 +22,11 @@ body {
   color: white;
 }
 
+/* 모든 요소에 box-sizing 적용 */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
 /* 로그인 컨테이너 */
 .login-container {
   background: rgba(255, 255, 255, 0.9);
@@ -43,9 +48,9 @@ body {
   color: yellow;
 }
 
-/* 대화 컨테이너: 두 캐릭터를 나란히 배치 */
+/* 대화 컨테이너 (두 캐릭터 나란히 배치) */
 #conversation {
-  display: none; /* 로그인 성공 후 표시 */
+  display: none;
   justify-content: space-around;
   align-items: flex-end;
   width: 100%;
@@ -74,7 +79,7 @@ body {
   animation-delay: 0s;
 }
 
-/* 오른쪽 캐릭터 이미지: 약간의 딜레이로 번갈아 bounce */
+/* 오른쪽 캐릭터 이미지 (약간의 딜레이) */
 .right .character-img {
   animation-delay: 0.3s;
 }
@@ -107,7 +112,7 @@ body {
   100% { opacity: 0; }
 }
 
-/* 왼쪽 캐릭터의 speech bubble: 오른쪽에 위치 */
+/* 왼쪽 캐릭터의 speech bubble (오른쪽 위치) */
 .left .speech-bubble {
   top: -50px;
   right: 10px;
@@ -115,7 +120,7 @@ body {
   text-align: right;
 }
 
-/* 오른쪽 캐릭터의 speech bubble: 왼쪽에 위치 */
+/* 오른쪽 캐릭터의 speech bubble (왼쪽 위치) */
 .right .speech-bubble {
   top: -50px;
   left: 10px;
@@ -123,7 +128,7 @@ body {
   text-align: left;
 }
 
-/* Speech bubble 화살표 (왼쪽 캐릭터용): 오른쪽을 향함 */
+/* Speech bubble 화살표 (왼쪽 캐릭터용) */
 .left .speech-bubble::after {
   content: "";
   position: absolute;
@@ -134,7 +139,7 @@ body {
   border-color: #219ebc transparent transparent transparent;
 }
 
-/* Speech bubble 화살표 (오른쪽 캐릭터용): 왼쪽을 향함 */
+/* Speech bubble 화살표 (오른쪽 캐릭터용) */
 .right .speech-bubble::after {
   content: "";
   position: absolute;
@@ -156,7 +161,7 @@ body {
   font-size: 14px;
 }
 
-/* 로그인 버튼 */
+/* 로그인 버튼 스타일 */
 .login-btn {
   width: 100%;
   padding: 12px;
@@ -167,10 +172,18 @@ body {
   border-radius: 5px;
   cursor: pointer;
   font-weight: bold;
+  transition: background 0.3s ease;
 }
 
 .login-btn:hover {
   background: linear-gradient(to right, #219ebc, #023047);
+}
+
+/* 로그인 버튼 - disabled 상태 스타일링 */
+.login-btn:disabled {
+  background: linear-gradient(to right, #d3d3d3, #a9a9a9);
+  color: #666;
+  cursor: not-allowed;
 }
 
 /* 로그아웃 버튼 스타일 */
