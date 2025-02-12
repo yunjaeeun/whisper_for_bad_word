@@ -1,5 +1,5 @@
 Name "Meeple Installer"
-OutFile "Meeple Setup 1.3.0.exe"
+OutFile "Meeple Setup 1.4.3.exe"
 InstallDir "C:\meeple"
 RequestExecutionLevel admin
 

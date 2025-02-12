@@ -3,7 +3,7 @@ from PyInstaller.utils.hooks import collect_all
 
 datas = [('C:\\Users\\SSAFY\\Desktop\\whisper_for_bad_word\\nsis_test_files\\venv\\Lib\\site-packages\\whisper\\assets', 'whisper\\assets')]
 binaries = []
-hiddenimports = ['sklearn', 'whisper']
+hiddenimports = ['torch', 'sklearn', 'whisper']
 tmp_ret = collect_all('sklearn')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('whisper')
