@@ -124,7 +124,7 @@ def process_audio_file(audio_file_path):
 
     if result == 1:
         print("욕설이 감지되었습니다.")
-        springboot_api_url = "https://boardjjigae.duckdns.org/api/ai/voice-log"
+        springboot_api_url = "https://letsmeeple.duckdns.org/api/ai/voice-log"
         try:
             with open(audio_file_path, "rb") as f:
                 files = {"audio": f}
